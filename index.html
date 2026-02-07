@@ -186,15 +186,39 @@ canvas {
   color: #ffd200;
   transition: opacity 0.2s;
 }
+
+#sound-toggle {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 20px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+#sound-toggle:hover {
+  background: rgba(255,255,255,0.2);
+}
 </style>
 </head>
 <body>
 <div id="game-container">
   <div id="header">
     <h1>Gem Crush</h1>
-    <div class="stat-box">
-      <div class="label">Score</div>
-      <div class="value" id="score-display">0</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="sound-toggle" title="Toggle sound">&#x1f50a;</button>
+      <div class="stat-box">
+        <div class="label">Score</div>
+        <div class="value" id="score-display">0</div>
+      </div>
     </div>
   </div>
   <div id="stats-row">
@@ -234,6 +258,113 @@ canvas {
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
+
+// ============================================================
+// Sound Engine (Web Audio API - no external files)
+// ============================================================
+
+let audioCtx = null;
+let soundEnabled = true;
+const soundToggleBtn = document.getElementById('sound-toggle');
+
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+function playTone(freq, duration, type, volume, rampDown) {
+  if (!soundEnabled || !audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(volume || 0.15, audioCtx.currentTime);
+    if (rampDown !== false) {
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    }
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {}
+}
+
+function playNoise(duration, volume) {
+  if (!soundEnabled || !audioCtx) return;
+  try {
+    const bufferSize = audioCtx.sampleRate * duration;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.5;
+    }
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(volume || 0.06, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 3000;
+    filter.Q.value = 0.5;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+    source.start();
+  } catch(e) {}
+}
+
+const SFX = {
+  select: function() {
+    playTone(880, 0.08, 'sine', 0.1);
+  },
+  swap: function() {
+    playTone(440, 0.06, 'sine', 0.1);
+    setTimeout(function() { playTone(554, 0.06, 'sine', 0.1); }, 50);
+  },
+  badSwap: function() {
+    playTone(200, 0.15, 'square', 0.08);
+    setTimeout(function() { playTone(160, 0.2, 'square', 0.08); }, 80);
+  },
+  match: function(combo) {
+    // Rising pitch per combo
+    var base = 523 + (combo - 1) * 80;
+    playTone(base, 0.12, 'sine', 0.13);
+    setTimeout(function() { playTone(base * 1.25, 0.12, 'sine', 0.13); }, 60);
+    setTimeout(function() { playTone(base * 1.5, 0.15, 'sine', 0.10); }, 120);
+    playNoise(0.1, 0.04);
+  },
+  drop: function() {
+    playTone(180, 0.15, 'sine', 0.06);
+  },
+  levelUp: function() {
+    var notes = [523, 659, 784, 1047];
+    notes.forEach(function(n, i) {
+      setTimeout(function() { playTone(n, 0.2, 'sine', 0.12); }, i * 100);
+    });
+  },
+  gameOver: function() {
+    var notes = [440, 370, 311, 262];
+    notes.forEach(function(n, i) {
+      setTimeout(function() { playTone(n, 0.3, 'triangle', 0.12); }, i * 150);
+    });
+  },
+  buttonClick: function() {
+    playTone(660, 0.06, 'sine', 0.1);
+    setTimeout(function() { playTone(880, 0.08, 'sine', 0.1); }, 40);
+  },
+};
+
+soundToggleBtn.addEventListener('click', function() {
+  ensureAudio();
+  soundEnabled = !soundEnabled;
+  soundToggleBtn.innerHTML = soundEnabled ? '&#x1f50a;' : '&#x1f507;';
+});
 
 // --- Board dimensions ---
 const COLS = 8;
@@ -691,6 +822,7 @@ async function processMatches() {
   while (matched.size > 0) {
     comboCount++;
     showCombo(comboCount);
+    SFX.match(comboCount);
 
     const matchCount = matched.size;
     const points = matchCount * 10 * comboCount;
@@ -767,6 +899,7 @@ async function processMatches() {
       }
     }
 
+    SFX.drop();
     await sleep(400);
     matched = findMatches();
   }
@@ -830,6 +963,7 @@ function levelUp() {
   movesDisplay.textContent = movesLeft;
   levelText.textContent = 'Score ' + levelTarget + ' to reach Level ' + (level + 1);
   showMessage('Level ' + level + '!', 1500);
+  SFX.levelUp();
 }
 
 // ============================================================
@@ -930,6 +1064,7 @@ canvas.addEventListener('touchend', function(e) {
 function handleClick(cell) {
   if (!selected) {
     selected = cell;
+    SFX.select();
     hintGems = null;
     hintTimer = 0;
     return;
@@ -942,6 +1077,7 @@ function handleClick(cell) {
     trySwap(selected.r, selected.c, cell.r, cell.c);
   } else {
     selected = cell;
+    SFX.select();
     hintGems = null;
     hintTimer = 0;
   }
@@ -953,12 +1089,14 @@ async function trySwap(r1, c1, r2, c2) {
   hintGems = null;
   hintTimer = 0;
 
+  SFX.swap();
   swapGrid(r1, c1, r2, c2);
   await animateSwap(r1, c1, r2, c2);
 
   const matched = findMatches();
   if (matched.size === 0) {
     // Invalid swap - reverse
+    SFX.badSwap();
     swapGrid(r1, c1, r2, c2);
     await animateSwap(r1, c1, r2, c2);
     animating = false;
@@ -1006,13 +1144,18 @@ function startGame() {
 
 function gameOver() {
   gameActive = false;
+  SFX.gameOver();
   overlayTitle.textContent = 'Game Over';
   overlayText.textContent = 'Final Score: ' + score + ' | Level: ' + level;
   overlayBtn.textContent = 'Play Again';
   setTimeout(function() { overlay.classList.remove('hidden'); }, 800);
 }
 
-overlayBtn.addEventListener('click', startGame);
+overlayBtn.addEventListener('click', function() {
+  ensureAudio();
+  SFX.buttonClick();
+  startGame();
+});
 
 // Start render loop
 requestAnimationFrame(gameLoop);
