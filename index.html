@@ -253,14 +253,14 @@ canvas {
 
 <script>
 // ============================================================
-// GEM CRUSH - Match 3 Game
+// GEM CRUSH - Match 3 Game (with Special Gems)
 // ============================================================
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 
 // ============================================================
-// Sound Engine (Web Audio API - no external files)
+// Sound Engine (Web Audio API)
 // ============================================================
 
 let audioCtx = null;
@@ -271,22 +271,18 @@ function ensureAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
-function playTone(freq, duration, type, volume, rampDown) {
+function playTone(freq, duration, type, volume) {
   if (!soundEnabled || !audioCtx) return;
   try {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
     osc.type = type || 'sine';
     osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
     gain.gain.setValueAtTime(volume || 0.15, audioCtx.currentTime);
-    if (rampDown !== false) {
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-    }
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
     osc.connect(gain);
     gain.connect(audioCtx.destination);
     osc.start(audioCtx.currentTime);
@@ -297,32 +293,24 @@ function playTone(freq, duration, type, volume, rampDown) {
 function playNoise(duration, volume) {
   if (!soundEnabled || !audioCtx) return;
   try {
-    const bufferSize = audioCtx.sampleRate * duration;
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * 0.5;
-    }
-    const source = audioCtx.createBufferSource();
-    source.buffer = buffer;
-    const gain = audioCtx.createGain();
+    var len = audioCtx.sampleRate * duration;
+    var buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+    var src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    var gain = audioCtx.createGain();
     gain.gain.setValueAtTime(volume || 0.06, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 3000;
-    filter.Q.value = 0.5;
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(audioCtx.destination);
-    source.start();
+    var filt = audioCtx.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 3000; filt.Q.value = 0.5;
+    src.connect(filt); filt.connect(gain); gain.connect(audioCtx.destination);
+    src.start();
   } catch(e) {}
 }
 
-const SFX = {
-  select: function() {
-    playTone(880, 0.08, 'sine', 0.1);
-  },
+var SFX = {
+  select: function() { playTone(880, 0.08, 'sine', 0.1); },
   swap: function() {
     playTone(440, 0.06, 'sine', 0.1);
     setTimeout(function() { playTone(554, 0.06, 'sine', 0.1); }, 50);
@@ -332,25 +320,26 @@ const SFX = {
     setTimeout(function() { playTone(160, 0.2, 'square', 0.08); }, 80);
   },
   match: function(combo) {
-    // Rising pitch per combo
     var base = 523 + (combo - 1) * 80;
     playTone(base, 0.12, 'sine', 0.13);
     setTimeout(function() { playTone(base * 1.25, 0.12, 'sine', 0.13); }, 60);
     setTimeout(function() { playTone(base * 1.5, 0.15, 'sine', 0.10); }, 120);
     playNoise(0.1, 0.04);
   },
-  drop: function() {
-    playTone(180, 0.15, 'sine', 0.06);
+  drop: function() { playTone(180, 0.15, 'sine', 0.06); },
+  special: function() {
+    playTone(784, 0.1, 'sine', 0.15);
+    setTimeout(function() { playTone(988, 0.1, 'sine', 0.15); }, 50);
+    setTimeout(function() { playTone(1318, 0.15, 'sine', 0.12); }, 100);
+    playNoise(0.2, 0.08);
   },
   levelUp: function() {
-    var notes = [523, 659, 784, 1047];
-    notes.forEach(function(n, i) {
+    [523, 659, 784, 1047].forEach(function(n, i) {
       setTimeout(function() { playTone(n, 0.2, 'sine', 0.12); }, i * 100);
     });
   },
   gameOver: function() {
-    var notes = [440, 370, 311, 262];
-    notes.forEach(function(n, i) {
+    [440, 370, 311, 262].forEach(function(n, i) {
       setTimeout(function() { playTone(n, 0.3, 'triangle', 0.12); }, i * 150);
     });
   },
@@ -367,20 +356,16 @@ soundToggleBtn.addEventListener('click', function() {
 });
 
 // --- Board dimensions ---
-const COLS = 8;
-const ROWS = 8;
-
-// Internal canvas resolution (high-res for crisp rendering)
-const CELL = 64;
-const PAD = 5;
-const GEM_SIZE = CELL - PAD * 2;
-const BOARD_PX = COLS * CELL; // 512
+var COLS = 8, ROWS = 8;
+var CELL = 64, PAD = 5;
+var GEM_SIZE = CELL - PAD * 2;
+var BOARD_PX = COLS * CELL;
 
 canvas.width = BOARD_PX;
 canvas.height = BOARD_PX;
 
-// Gem types with colors and shapes
-const GEM_TYPES = [
+// Gem types
+var GEM_TYPES = [
   { name: 'ruby',     fill: '#e74c3c', stroke: '#ff8a80', glow: '#ff6b6b', shape: 'diamond'  },
   { name: 'emerald',  fill: '#2ecc71', stroke: '#81ffa8', glow: '#69ff9b', shape: 'circle'   },
   { name: 'sapphire', fill: '#3498db', stroke: '#90caf9', glow: '#6bc1ff', shape: 'square'   },
@@ -390,39 +375,38 @@ const GEM_TYPES = [
 ];
 
 // --- Game State ---
-let grid = [];
-let selected = null;
-let animating = false;
-let score = 0;
-let bestScore = 0;
+var grid = [];       // 2D array of gem type indices (-1 = empty)
+var specials = [];   // 2D array: null, 'row', 'col', or 'bomb'
+var cells = [];      // 2D array of animation state per cell
+var selected = null;
+var animating = false;
+var score = 0;
+var bestScore = 0;
 try { bestScore = parseInt(localStorage.getItem('gemcrush_best') || '0'); } catch(e) {}
-let level = 1;
-let movesLeft = 30;
-let levelTarget = 1000;
-let comboCount = 0;
-let gameActive = false;
-let particles = [];
-let floatingTexts = [];
-let hintTimer = 0;
-let hintGems = null;
-let hoverCell = null;
-
-// Per-cell animation state
-let cells = [];
+var level = 1;
+var movesLeft = 30;
+var levelTarget = 1000;
+var comboCount = 0;
+var gameActive = false;
+var particles = [];
+var floatingTexts = [];
+var hintTimer = 0;
+var hintGems = null;
+var hoverCell = null;
 
 // --- UI refs ---
-const scoreDisplay = document.getElementById('score-display');
-const levelDisplay = document.getElementById('level-display');
-const movesDisplay = document.getElementById('moves-display');
-const bestDisplay = document.getElementById('best-display');
-const levelBar = document.getElementById('level-bar');
-const levelText = document.getElementById('level-text');
-const messageEl = document.getElementById('message');
-const comboEl = document.getElementById('combo-display');
-const overlay = document.getElementById('overlay');
-const overlayTitle = document.getElementById('overlay-title');
-const overlayText = document.getElementById('overlay-text');
-const overlayBtn = document.getElementById('overlay-btn');
+var scoreDisplay = document.getElementById('score-display');
+var levelDisplay = document.getElementById('level-display');
+var movesDisplay = document.getElementById('moves-display');
+var bestDisplay = document.getElementById('best-display');
+var levelBar = document.getElementById('level-bar');
+var levelText = document.getElementById('level-text');
+var messageEl = document.getElementById('message');
+var comboEl = document.getElementById('combo-display');
+var overlay = document.getElementById('overlay');
+var overlayTitle = document.getElementById('overlay-title');
+var overlayText = document.getElementById('overlay-text');
+var overlayBtn = document.getElementById('overlay-btn');
 
 bestDisplay.textContent = bestScore;
 
@@ -435,11 +419,11 @@ function randomType() {
 }
 
 function createGrid() {
-  grid = [];
-  for (let r = 0; r < ROWS; r++) {
-    grid[r] = [];
-    for (let c = 0; c < COLS; c++) {
-      let type;
+  grid = []; specials = [];
+  for (var r = 0; r < ROWS; r++) {
+    grid[r] = []; specials[r] = [];
+    for (var c = 0; c < COLS; c++) {
+      var type;
       do {
         type = randomType();
       } while (
@@ -447,6 +431,7 @@ function createGrid() {
         (r >= 2 && grid[r-1][c] === type && grid[r-2][c] === type)
       );
       grid[r][c] = type;
+      specials[r][c] = null;
     }
   }
   initCells();
@@ -454,54 +439,88 @@ function createGrid() {
 
 function initCells() {
   cells = [];
-  for (let r = 0; r < ROWS; r++) {
+  for (var r = 0; r < ROWS; r++) {
     cells[r] = [];
-    for (let c = 0; c < COLS; c++) {
+    for (var c = 0; c < COLS; c++) {
       cells[r][c] = {
         type: grid[r][c],
         x: c * CELL + CELL / 2,
         y: r * CELL + CELL / 2,
         targetX: c * CELL + CELL / 2,
         targetY: r * CELL + CELL / 2,
-        scale: 1,
-        alpha: 1,
+        scale: 1, alpha: 1,
       };
     }
   }
 }
 
-function findMatches() {
-  const matched = new Set();
+// Return match groups with direction and length info
+function findMatchGroups() {
+  var groups = [];
   // Horizontal
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS - 2; c++) {
-      if (grid[r][c] !== -1 &&
-          grid[r][c] === grid[r][c+1] &&
-          grid[r][c] === grid[r][c+2]) {
-        let end = c + 2;
-        while (end + 1 < COLS && grid[r][end+1] === grid[r][c]) end++;
-        for (let i = c; i <= end; i++) matched.add(r * COLS + i);
+  for (var r = 0; r < ROWS; r++) {
+    var c = 0;
+    while (c < COLS) {
+      if (grid[r][c] === -1) { c++; continue; }
+      var end = c;
+      while (end + 1 < COLS && grid[r][end + 1] === grid[r][c]) end++;
+      if (end - c >= 2) {
+        var pos = [];
+        for (var i = c; i <= end; i++) pos.push(r * COLS + i);
+        groups.push({ dir: 'h', len: end - c + 1, cells: pos, type: grid[r][c] });
       }
+      c = end + 1;
     }
   }
   // Vertical
-  for (let c = 0; c < COLS; c++) {
-    for (let r = 0; r < ROWS - 2; r++) {
-      if (grid[r][c] !== -1 &&
-          grid[r][c] === grid[r+1][c] &&
-          grid[r][c] === grid[r+2][c]) {
-        let end = r + 2;
-        while (end + 1 < ROWS && grid[end+1][c] === grid[r][c]) end++;
-        for (let i = r; i <= end; i++) matched.add(i * COLS + c);
+  for (var c2 = 0; c2 < COLS; c2++) {
+    var r2 = 0;
+    while (r2 < ROWS) {
+      if (grid[r2][c2] === -1) { r2++; continue; }
+      var end2 = r2;
+      while (end2 + 1 < ROWS && grid[end2 + 1][c2] === grid[r2][c2]) end2++;
+      if (end2 - r2 >= 2) {
+        var pos2 = [];
+        for (var j = r2; j <= end2; j++) pos2.push(j * COLS + c2);
+        groups.push({ dir: 'v', len: end2 - r2 + 1, cells: pos2, type: grid[r2][c2] });
       }
+      r2 = end2 + 1;
     }
+  }
+  return groups;
+}
+
+// Flat set of all matched cell indices (for hasValidMoves compatibility)
+function findMatches() {
+  var groups = findMatchGroups();
+  var matched = new Set();
+  for (var g = 0; g < groups.length; g++) {
+    for (var i = 0; i < groups[g].cells.length; i++) matched.add(groups[g].cells[i]);
   }
   return matched;
 }
 
+// Get cells affected by a special gem triggering
+function getSpecialEffect(r, c, type) {
+  var affected = [];
+  if (type === 'row') {
+    for (var cc = 0; cc < COLS; cc++) affected.push(r * COLS + cc);
+  } else if (type === 'col') {
+    for (var rr = 0; rr < ROWS; rr++) affected.push(rr * COLS + c);
+  } else if (type === 'bomb') {
+    for (var dr = -2; dr <= 2; dr++) {
+      for (var dc = -2; dc <= 2; dc++) {
+        var nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) affected.push(nr * COLS + nc);
+      }
+    }
+  }
+  return affected;
+}
+
 function hasValidMoves() {
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
       if (c < COLS - 1) {
         swapGrid(r, c, r, c + 1);
         if (findMatches().size > 0) { swapGrid(r, c, r, c + 1); return { r1: r, c1: c, r2: r, c2: c + 1 }; }
@@ -518,9 +537,8 @@ function hasValidMoves() {
 }
 
 function swapGrid(r1, c1, r2, c2) {
-  const tmp = grid[r1][c1];
-  grid[r1][c1] = grid[r2][c2];
-  grid[r2][c2] = tmp;
+  var tmp = grid[r1][c1]; grid[r1][c1] = grid[r2][c2]; grid[r2][c2] = tmp;
+  var ts = specials[r1][c1]; specials[r1][c1] = specials[r2][c2]; specials[r2][c2] = ts;
 }
 
 // ============================================================
@@ -528,23 +546,38 @@ function swapGrid(r1, c1, r2, c2) {
 // ============================================================
 
 function spawnParticles(x, y, color, count) {
-  for (let i = 0; i < count; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 1.5 + Math.random() * 4;
+  for (var i = 0; i < count; i++) {
+    var angle = Math.random() * Math.PI * 2;
+    var speed = 1.5 + Math.random() * 4;
     particles.push({
-      x, y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      life: 1,
-      decay: 0.012 + Math.random() * 0.018,
-      size: 3 + Math.random() * 5,
-      color,
+      x: x, y: y,
+      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      life: 1, decay: 0.012 + Math.random() * 0.018,
+      size: 3 + Math.random() * 5, color: color,
     });
   }
 }
 
+function spawnLineParticles(r, c, type) {
+  var cx = c * CELL + CELL / 2, cy = r * CELL + CELL / 2;
+  if (type === 'row') {
+    for (var cc = 0; cc < COLS; cc++)
+      spawnParticles(cc * CELL + CELL / 2, cy, '#fff', 3);
+  } else if (type === 'col') {
+    for (var rr = 0; rr < ROWS; rr++)
+      spawnParticles(cx, rr * CELL + CELL / 2, '#fff', 3);
+  } else if (type === 'bomb') {
+    for (var dr = -2; dr <= 2; dr++)
+      for (var dc = -2; dc <= 2; dc++) {
+        var nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS)
+          spawnParticles(nc * CELL + CELL / 2, nr * CELL + CELL / 2, '#ffd200', 4);
+      }
+  }
+}
+
 function spawnFloatingText(x, y, text, color) {
-  floatingTexts.push({ x, y, text, color, life: 1, vy: -2 });
+  floatingTexts.push({ x: x, y: y, text: text, color: color, life: 1, vy: -2 });
 }
 
 function showMessage(text, duration) {
@@ -552,7 +585,7 @@ function showMessage(text, duration) {
   messageEl.style.opacity = '1';
   messageEl.style.transform = 'translate(-50%, -50%) scale(1.1)';
   messageEl.style.color = '#ffd200';
-  setTimeout(() => {
+  setTimeout(function() {
     messageEl.style.opacity = '0';
     messageEl.style.transform = 'translate(-50%, -50%) scale(0.8)';
   }, duration || 1200);
@@ -568,98 +601,112 @@ function showCombo(count) {
 // Drawing
 // ============================================================
 
-function drawGem(x, y, typeIdx, scale, alpha, isSelected, isHint) {
-  const gem = GEM_TYPES[typeIdx];
-  if (!gem) return;
+function drawGemShape(s, shape) {
+  switch (shape) {
+    case 'diamond':
+      ctx.moveTo(0, -s); ctx.lineTo(s, 0); ctx.lineTo(0, s); ctx.lineTo(-s, 0);
+      ctx.closePath(); break;
+    case 'circle':
+      ctx.arc(0, 0, s * 0.82, 0, Math.PI * 2); break;
+    case 'square':
+      var hs = s * 0.72, rd = 5;
+      ctx.moveTo(-hs + rd, -hs);
+      ctx.lineTo(hs - rd, -hs); ctx.quadraticCurveTo(hs, -hs, hs, -hs + rd);
+      ctx.lineTo(hs, hs - rd); ctx.quadraticCurveTo(hs, hs, hs - rd, hs);
+      ctx.lineTo(-hs + rd, hs); ctx.quadraticCurveTo(-hs, hs, -hs, hs - rd);
+      ctx.lineTo(-hs, -hs + rd); ctx.quadraticCurveTo(-hs, -hs, -hs + rd, -hs);
+      ctx.closePath(); break;
+    case 'triangle':
+      ctx.moveTo(0, -s * 0.9); ctx.lineTo(s * 0.85, s * 0.65); ctx.lineTo(-s * 0.85, s * 0.65);
+      ctx.closePath(); break;
+    case 'hexagon':
+      for (var i = 0; i < 6; i++) {
+        var a = (Math.PI / 3) * i - Math.PI / 6;
+        if (i === 0) ctx.moveTo(Math.cos(a) * s * 0.82, Math.sin(a) * s * 0.82);
+        else ctx.lineTo(Math.cos(a) * s * 0.82, Math.sin(a) * s * 0.82);
+      }
+      ctx.closePath(); break;
+    case 'star':
+      for (var i2 = 0; i2 < 10; i2++) {
+        var a2 = (Math.PI / 5) * i2 - Math.PI / 2;
+        var rad = i2 % 2 === 0 ? s * 0.82 : s * 0.38;
+        if (i2 === 0) ctx.moveTo(Math.cos(a2) * rad, Math.sin(a2) * rad);
+        else ctx.lineTo(Math.cos(a2) * rad, Math.sin(a2) * rad);
+      }
+      ctx.closePath(); break;
+  }
+}
 
+function drawGem(x, y, typeIdx, scale, alpha, isSelected, isHint, specialType) {
+  var gem = GEM_TYPES[typeIdx];
+  if (!gem) return;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(x, y);
   ctx.scale(scale, scale);
+  var s = GEM_SIZE / 2;
 
-  const s = GEM_SIZE / 2;
+  // Glow
+  if (isSelected) { ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 20; }
+  else if (specialType) { ctx.shadowColor = '#ffd200'; ctx.shadowBlur = 16; }
+  else if (isHint) { ctx.shadowColor = gem.glow; ctx.shadowBlur = 14; }
 
-  // Glow effect for selected or hinted gems
-  if (isSelected) {
-    ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 20;
-  } else if (isHint) {
-    ctx.shadowColor = gem.glow;
-    ctx.shadowBlur = 14;
-  }
-
-  // Fill + stroke
+  // Main shape
   ctx.fillStyle = gem.fill;
   ctx.strokeStyle = gem.stroke;
   ctx.lineWidth = 2;
   ctx.beginPath();
-
-  switch (gem.shape) {
-    case 'diamond':
-      ctx.moveTo(0, -s);
-      ctx.lineTo(s, 0);
-      ctx.lineTo(0, s);
-      ctx.lineTo(-s, 0);
-      ctx.closePath();
-      break;
-    case 'circle':
-      ctx.arc(0, 0, s * 0.82, 0, Math.PI * 2);
-      break;
-    case 'square': {
-      const hs = s * 0.72;
-      const rad = 5;
-      ctx.moveTo(-hs + rad, -hs);
-      ctx.lineTo(hs - rad, -hs);
-      ctx.quadraticCurveTo(hs, -hs, hs, -hs + rad);
-      ctx.lineTo(hs, hs - rad);
-      ctx.quadraticCurveTo(hs, hs, hs - rad, hs);
-      ctx.lineTo(-hs + rad, hs);
-      ctx.quadraticCurveTo(-hs, hs, -hs, hs - rad);
-      ctx.lineTo(-hs, -hs + rad);
-      ctx.quadraticCurveTo(-hs, -hs, -hs + rad, -hs);
-      ctx.closePath();
-      break;
-    }
-    case 'triangle':
-      ctx.moveTo(0, -s * 0.9);
-      ctx.lineTo(s * 0.85, s * 0.65);
-      ctx.lineTo(-s * 0.85, s * 0.65);
-      ctx.closePath();
-      break;
-    case 'hexagon':
-      for (let i = 0; i < 6; i++) {
-        const a = (Math.PI / 3) * i - Math.PI / 6;
-        const px = Math.cos(a) * s * 0.82;
-        const py = Math.sin(a) * s * 0.82;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      break;
-    case 'star':
-      for (let i = 0; i < 10; i++) {
-        const a = (Math.PI / 5) * i - Math.PI / 2;
-        const rad = i % 2 === 0 ? s * 0.82 : s * 0.38;
-        const px = Math.cos(a) * rad;
-        const py = Math.sin(a) * rad;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      break;
-  }
-
+  drawGemShape(s, gem.shape);
   ctx.fill();
   ctx.stroke();
 
-  // Shine highlight
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
+  // Shine
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
   ctx.globalAlpha = alpha * 0.35;
   ctx.fillStyle = '#fff';
   ctx.beginPath();
   ctx.ellipse(-s * 0.2, -s * 0.2, s * 0.28, s * 0.2, -0.5, 0, Math.PI * 2);
   ctx.fill();
+
+  // --- Special indicator overlay ---
+  if (specialType) {
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+
+    if (specialType === 'row') {
+      // Horizontal arrows
+      var aw = s * 0.55, ah = s * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(-aw, 0); ctx.lineTo(aw, 0);
+      ctx.moveTo(aw - ah, -ah); ctx.lineTo(aw, 0); ctx.lineTo(aw - ah, ah);
+      ctx.moveTo(-aw + ah, -ah); ctx.lineTo(-aw, 0); ctx.lineTo(-aw + ah, ah);
+      ctx.stroke();
+    } else if (specialType === 'col') {
+      // Vertical arrows
+      var aw2 = s * 0.55, ah2 = s * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(0, -aw2); ctx.lineTo(0, aw2);
+      ctx.moveTo(-ah2, aw2 - ah2); ctx.lineTo(0, aw2); ctx.lineTo(ah2, aw2 - ah2);
+      ctx.moveTo(-ah2, -aw2 + ah2); ctx.lineTo(0, -aw2); ctx.lineTo(ah2, -aw2 + ah2);
+      ctx.stroke();
+    } else if (specialType === 'bomb') {
+      // Cross / explosion symbol
+      var bs = s * 0.45;
+      ctx.beginPath();
+      ctx.moveTo(-bs, -bs); ctx.lineTo(bs, bs);
+      ctx.moveTo(bs, -bs); ctx.lineTo(-bs, bs);
+      ctx.moveTo(-bs, 0); ctx.lineTo(bs, 0);
+      ctx.moveTo(0, -bs); ctx.lineTo(0, bs);
+      ctx.stroke();
+      // Outer ring
+      ctx.globalAlpha = alpha * 0.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
 
   ctx.restore();
 }
@@ -667,47 +714,48 @@ function drawGem(x, y, typeIdx, scale, alpha, isSelected, isHint) {
 function drawBoard() {
   ctx.clearRect(0, 0, BOARD_PX, BOARD_PX);
 
-  // Background checkerboard
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
+  // Background
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
       ctx.fillStyle = (r + c) % 2 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)';
       ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
     }
   }
 
-  // Hover highlight
+  // Hover
   if (hoverCell && !animating && gameActive) {
     ctx.fillStyle = 'rgba(255,255,255,0.1)';
     ctx.fillRect(hoverCell.c * CELL, hoverCell.r * CELL, CELL, CELL);
   }
 
-  // Selected cell highlight
+  // Selection
   if (selected && gameActive) {
     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
     ctx.lineWidth = 3;
     ctx.strokeRect(selected.c * CELL + 2, selected.r * CELL + 2, CELL - 4, CELL - 4);
   }
 
-  // Draw gems
+  // Gems
   if (cells.length > 0) {
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const cell = cells[r][c];
+    for (var r2 = 0; r2 < ROWS; r2++) {
+      for (var c2 = 0; c2 < COLS; c2++) {
+        var cell = cells[r2][c2];
         if (cell.type < 0 || cell.type >= GEM_TYPES.length) continue;
         if (cell.scale <= 0) continue;
-        const isSel = selected && selected.r === r && selected.c === c;
-        const isHint = hintGems && (
-          (hintGems.r1 === r && hintGems.c1 === c) ||
-          (hintGems.r2 === r && hintGems.c2 === c)
+        var isSel = selected && selected.r === r2 && selected.c === c2;
+        var isHint = hintGems && (
+          (hintGems.r1 === r2 && hintGems.c1 === c2) ||
+          (hintGems.r2 === r2 && hintGems.c2 === c2)
         );
-        drawGem(cell.x, cell.y, cell.type, cell.scale, cell.alpha, isSel, isHint);
+        var sp = specials[r2] ? specials[r2][c2] : null;
+        drawGem(cell.x, cell.y, cell.type, cell.scale, cell.alpha, isSel, isHint, sp);
       }
     }
   }
 
   // Particles
-  for (let i = 0; i < particles.length; i++) {
-    const p = particles[i];
+  for (var pi = 0; pi < particles.length; pi++) {
+    var p = particles[pi];
     ctx.globalAlpha = p.life * 0.8;
     ctx.fillStyle = p.color;
     ctx.beginPath();
@@ -716,9 +764,9 @@ function drawBoard() {
   }
   ctx.globalAlpha = 1;
 
-  // Floating score texts
-  for (let i = 0; i < floatingTexts.length; i++) {
-    const ft = floatingTexts[i];
+  // Floating texts
+  for (var fi = 0; fi < floatingTexts.length; fi++) {
+    var ft = floatingTexts[fi];
     ctx.globalAlpha = ft.life;
     ctx.fillStyle = ft.color;
     ctx.font = 'bold 24px sans-serif';
@@ -733,20 +781,19 @@ function drawBoard() {
 // Game Loop
 // ============================================================
 
-let lastTime = 0;
+var lastTime = 0;
 
 function gameLoop(timestamp) {
   if (!lastTime) lastTime = timestamp;
-  const dt = Math.min((timestamp - lastTime) / 16.67, 3);
+  var dt = Math.min((timestamp - lastTime) / 16.67, 3);
   lastTime = timestamp;
 
-  // Animate cell positions toward targets
   if (cells.length > 0) {
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const cell = cells[r][c];
-        const dx = cell.targetX - cell.x;
-        const dy = cell.targetY - cell.y;
+    for (var r = 0; r < ROWS; r++) {
+      for (var c = 0; c < COLS; c++) {
+        var cell = cells[r][c];
+        var dx = cell.targetX - cell.x;
+        var dy = cell.targetY - cell.y;
         if (Math.abs(dx) > 0.3 || Math.abs(dy) > 0.3) {
           cell.x += dx * 0.18 * dt;
           cell.y += dy * 0.18 * dt;
@@ -758,28 +805,18 @@ function gameLoop(timestamp) {
     }
   }
 
-  // Update particles
-  particles = particles.filter(p => {
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.vy += 0.06 * dt;
-    p.life -= p.decay * dt;
-    return p.life > 0;
+  particles = particles.filter(function(p) {
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.06 * dt;
+    p.life -= p.decay * dt; return p.life > 0;
   });
 
-  // Update floating texts
-  floatingTexts = floatingTexts.filter(ft => {
-    ft.y += ft.vy * dt;
-    ft.life -= 0.018 * dt;
-    return ft.life > 0;
+  floatingTexts = floatingTexts.filter(function(ft) {
+    ft.y += ft.vy * dt; ft.life -= 0.018 * dt; return ft.life > 0;
   });
 
-  // Hint timer
   if (gameActive && !animating && selected === null) {
     hintTimer += dt;
-    if (hintTimer > 300 && !hintGems) {
-      hintGems = hasValidMoves();
-    }
+    if (hintTimer > 300 && !hintGems) hintGems = hasValidMoves();
   }
 
   drawBoard();
@@ -790,25 +827,15 @@ function gameLoop(timestamp) {
 // Game Mechanics
 // ============================================================
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+function sleep(ms) { return new Promise(function(resolve) { setTimeout(resolve, ms); }); }
 
 async function animateSwap(r1, c1, r2, c2) {
-  // Set animation targets to swapped positions
   cells[r1][c1].targetX = c2 * CELL + CELL / 2;
   cells[r1][c1].targetY = r2 * CELL + CELL / 2;
   cells[r2][c2].targetX = c1 * CELL + CELL / 2;
   cells[r2][c2].targetY = r1 * CELL + CELL / 2;
-
   await sleep(220);
-
-  // Swap cell objects in the array
-  const tmp = cells[r1][c1];
-  cells[r1][c1] = cells[r2][c2];
-  cells[r2][c2] = tmp;
-
-  // Snap targets to correct grid positions
+  var tmp = cells[r1][c1]; cells[r1][c1] = cells[r2][c2]; cells[r2][c2] = tmp;
   cells[r1][c1].targetX = c1 * CELL + CELL / 2;
   cells[r1][c1].targetY = r1 * CELL + CELL / 2;
   cells[r2][c2].targetX = c2 * CELL + CELL / 2;
@@ -817,96 +844,169 @@ async function animateSwap(r1, c1, r2, c2) {
 
 async function processMatches() {
   comboCount = 0;
-  let matched = findMatches();
+  var groups = findMatchGroups();
 
-  while (matched.size > 0) {
+  while (groups.length > 0) {
     comboCount++;
     showCombo(comboCount);
     SFX.match(comboCount);
 
-    const matchCount = matched.size;
-    const points = matchCount * 10 * comboCount;
+    // Build flat set of all matched cells
+    var toClear = new Set();
+    for (var g = 0; g < groups.length; g++) {
+      for (var i = 0; i < groups[g].cells.length; i++) toClear.add(groups[g].cells[i]);
+    }
 
-    // Spawn particles on matched gems
-    for (const idx of matched) {
-      const r = Math.floor(idx / COLS);
-      const c = idx % COLS;
-      const cell = cells[r][c];
-      if (cell.type >= 0 && cell.type < GEM_TYPES.length) {
-        spawnParticles(cell.x, cell.y, GEM_TYPES[cell.type].glow, 10);
+    // Determine specials to create from match-4 and match-5+
+    var specialsToCreate = [];
+    for (var g2 = 0; g2 < groups.length; g2++) {
+      var grp = groups[g2];
+      if (grp.len >= 5) {
+        // Match-5+: bomb (placed at middle)
+        var midIdx = grp.cells[Math.floor(grp.cells.length / 2)];
+        specialsToCreate.push({ idx: midIdx, stype: 'bomb', gemType: grp.type });
+      } else if (grp.len === 4) {
+        // Match-4: row or column clear
+        var midIdx2 = grp.cells[Math.floor(grp.cells.length / 2)];
+        var stype = grp.dir === 'h' ? 'row' : 'col';
+        specialsToCreate.push({ idx: midIdx2, stype: stype, gemType: grp.type });
       }
     }
 
-    // Floating score text at center of match
-    const indices = [...matched];
-    const centerIdx = indices[Math.floor(indices.length / 2)];
-    const cr = Math.floor(centerIdx / COLS);
-    const cc = centerIdx % COLS;
-    spawnFloatingText(cc * CELL + CELL / 2, cr * CELL + CELL / 2, '+' + points, '#ffd200');
+    // Remove special-creation positions from clear set (they survive as special gems)
+    var specialPositions = new Set();
+    for (var si = 0; si < specialsToCreate.length; si++) {
+      var sp = specialsToCreate[si];
+      toClear.delete(sp.idx);
+      specialPositions.add(sp.idx);
+    }
+
+    // Check if any cleared cells contain existing specials -> trigger chain reaction
+    var triggeredSpecials = false;
+    var processed = new Set();
+    var toProcess = [];
+    toClear.forEach(function(idx) { toProcess.push(idx); });
+
+    while (toProcess.length > 0) {
+      var idx = toProcess.pop();
+      if (processed.has(idx)) continue;
+      processed.add(idx);
+      var sr = Math.floor(idx / COLS), sc = idx % COLS;
+      if (specials[sr] && specials[sr][sc]) {
+        var spType = specials[sr][sc];
+        triggeredSpecials = true;
+        spawnLineParticles(sr, sc, spType);
+        specials[sr][sc] = null;
+        var fx = getSpecialEffect(sr, sc, spType);
+        for (var fi = 0; fi < fx.length; fi++) {
+          if (!toClear.has(fx[fi]) && !specialPositions.has(fx[fi])) {
+            toClear.add(fx[fi]);
+            toProcess.push(fx[fi]);
+          }
+        }
+      }
+    }
+
+    if (triggeredSpecials) SFX.special();
+
+    // Calculate points
+    var points = toClear.size * 10 * comboCount;
+    // Bonus points for specials created
+    points += specialsToCreate.length * 50;
+
+    // Spawn particles on cleared gems
+    toClear.forEach(function(idx) {
+      var rr = Math.floor(idx / COLS), cc2 = idx % COLS;
+      var cl = cells[rr][cc2];
+      if (cl.type >= 0 && cl.type < GEM_TYPES.length) {
+        spawnParticles(cl.x, cl.y, GEM_TYPES[cl.type].glow, 8);
+      }
+    });
+
+    // Floating score text
+    var allIdx = [];
+    toClear.forEach(function(idx) { allIdx.push(idx); });
+    if (allIdx.length > 0) {
+      var centIdx = allIdx[Math.floor(allIdx.length / 2)];
+      var cr = Math.floor(centIdx / COLS), cc3 = centIdx % COLS;
+      spawnFloatingText(cc3 * CELL + CELL / 2, cr * CELL + CELL / 2, '+' + points, '#ffd200');
+    }
 
     await sleep(180);
 
-    // Remove matched gems
-    for (const idx of matched) {
-      const r = Math.floor(idx / COLS);
-      const c = idx % COLS;
-      grid[r][c] = -1;
-      cells[r][c].type = -1;
-      cells[r][c].scale = 0;
+    // Clear matched gems
+    toClear.forEach(function(idx) {
+      var rr = Math.floor(idx / COLS), cc4 = idx % COLS;
+      grid[rr][cc4] = -1;
+      cells[rr][cc4].type = -1;
+      cells[rr][cc4].scale = 0;
+      specials[rr][cc4] = null;
+    });
+
+    // Create special gems (they stay on the board with their color)
+    for (var si2 = 0; si2 < specialsToCreate.length; si2++) {
+      var sp2 = specialsToCreate[si2];
+      var spr = Math.floor(sp2.idx / COLS), spc = sp2.idx % COLS;
+      grid[spr][spc] = sp2.gemType;
+      cells[spr][spc].type = sp2.gemType;
+      cells[spr][spc].scale = 1;
+      cells[spr][spc].alpha = 1;
+      specials[spr][spc] = sp2.stype;
     }
 
     addScore(points);
     await sleep(200);
 
     // Gravity: collapse gems down and fill from top
-    for (let c = 0; c < COLS; c++) {
-      // Collect non-empty gems from bottom to top
-      const columnGems = [];
-      for (let r = ROWS - 1; r >= 0; r--) {
-        if (grid[r][c] !== -1) {
-          columnGems.push({ type: grid[r][c], prevX: cells[r][c].x, prevY: cells[r][c].y });
+    for (var col = 0; col < COLS; col++) {
+      var columnGems = [];
+      for (var row = ROWS - 1; row >= 0; row--) {
+        if (grid[row][col] !== -1) {
+          columnGems.push({
+            type: grid[row][col],
+            special: specials[row][col],
+            prevX: cells[row][col].x,
+            prevY: cells[row][col].y
+          });
         }
       }
+      var emptyCount = ROWS - columnGems.length;
 
-      // Count empty spaces to fill
-      const emptyCount = ROWS - columnGems.length;
-
-      // Place existing gems at bottom positions
-      for (let i = 0; i < columnGems.length; i++) {
-        const targetRow = ROWS - 1 - i;
-        grid[targetRow][c] = columnGems[i].type;
-        cells[targetRow][c].type = columnGems[i].type;
-        cells[targetRow][c].x = columnGems[i].prevX;
-        cells[targetRow][c].y = columnGems[i].prevY;
-        cells[targetRow][c].targetX = c * CELL + CELL / 2;
-        cells[targetRow][c].targetY = targetRow * CELL + CELL / 2;
-        cells[targetRow][c].scale = 1;
-        cells[targetRow][c].alpha = 1;
+      for (var ci = 0; ci < columnGems.length; ci++) {
+        var targetRow = ROWS - 1 - ci;
+        grid[targetRow][col] = columnGems[ci].type;
+        specials[targetRow][col] = columnGems[ci].special;
+        cells[targetRow][col].type = columnGems[ci].type;
+        cells[targetRow][col].x = columnGems[ci].prevX;
+        cells[targetRow][col].y = columnGems[ci].prevY;
+        cells[targetRow][col].targetX = col * CELL + CELL / 2;
+        cells[targetRow][col].targetY = targetRow * CELL + CELL / 2;
+        cells[targetRow][col].scale = 1;
+        cells[targetRow][col].alpha = 1;
       }
 
-      // Fill top rows with new gems
-      for (let i = 0; i < emptyCount; i++) {
-        const r = emptyCount - 1 - i;
-        const type = randomType();
-        grid[r][c] = type;
-        cells[r][c].type = type;
-        cells[r][c].x = c * CELL + CELL / 2;
-        cells[r][c].y = -(i + 1) * CELL;
-        cells[r][c].targetX = c * CELL + CELL / 2;
-        cells[r][c].targetY = r * CELL + CELL / 2;
-        cells[r][c].scale = 1;
-        cells[r][c].alpha = 1;
+      for (var ei = 0; ei < emptyCount; ei++) {
+        var fillRow = emptyCount - 1 - ei;
+        var newType = randomType();
+        grid[fillRow][col] = newType;
+        specials[fillRow][col] = null;
+        cells[fillRow][col].type = newType;
+        cells[fillRow][col].x = col * CELL + CELL / 2;
+        cells[fillRow][col].y = -(ei + 1) * CELL;
+        cells[fillRow][col].targetX = col * CELL + CELL / 2;
+        cells[fillRow][col].targetY = fillRow * CELL + CELL / 2;
+        cells[fillRow][col].scale = 1;
+        cells[fillRow][col].alpha = 1;
       }
     }
 
     SFX.drop();
     await sleep(400);
-    matched = findMatches();
+    groups = findMatchGroups();
   }
 
   comboEl.style.opacity = '0';
 
-  // Check for valid moves
   if (!hasValidMoves()) {
     showMessage('No moves! Shuffling...', 1200);
     await sleep(1400);
@@ -915,39 +1015,34 @@ async function processMatches() {
 }
 
 function shuffleBoard() {
-  const types = [];
-  for (let r = 0; r < ROWS; r++)
-    for (let c = 0; c < COLS; c++)
+  var types = [], specs = [];
+  for (var r = 0; r < ROWS; r++)
+    for (var c = 0; c < COLS; c++) {
       types.push(grid[r][c]);
-
-  for (let i = types.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [types[i], types[j]] = [types[j], types[i]];
+      specs.push(specials[r][c]);
+    }
+  for (var i = types.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = types[i]; types[i] = types[j]; types[j] = t;
+    var s = specs[i]; specs[i] = specs[j]; specs[j] = s;
   }
-
-  let idx = 0;
-  for (let r = 0; r < ROWS; r++)
-    for (let c = 0; c < COLS; c++)
-      grid[r][c] = types[idx++];
-
+  var idx = 0;
+  for (var r2 = 0; r2 < ROWS; r2++)
+    for (var c2 = 0; c2 < COLS; c2++) {
+      grid[r2][c2] = types[idx];
+      specials[r2][c2] = specs[idx];
+      idx++;
+    }
   initCells();
-
-  if (!hasValidMoves()) {
-    createGrid();
-  }
+  if (!hasValidMoves()) createGrid();
 }
 
 function addScore(points) {
   score += points;
   scoreDisplay.textContent = score;
-
-  const progress = Math.min(score / levelTarget * 100, 100);
+  var progress = Math.min(score / levelTarget * 100, 100);
   levelBar.style.width = progress + '%';
-
-  if (score >= levelTarget) {
-    levelUp();
-  }
-
+  if (score >= levelTarget) levelUp();
   if (score > bestScore) {
     bestScore = score;
     bestDisplay.textContent = bestScore;
@@ -971,27 +1066,20 @@ function levelUp() {
 // ============================================================
 
 function getCellFromPointer(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const x = (clientX - rect.left) * scaleX;
-  const y = (clientY - rect.top) * scaleY;
-  const c = Math.floor(x / CELL);
-  const r = Math.floor(y / CELL);
-  if (r >= 0 && r < ROWS && c >= 0 && c < COLS) return { r, c };
+  var rect = canvas.getBoundingClientRect();
+  var sx = canvas.width / rect.width, sy = canvas.height / rect.height;
+  var x = (clientX - rect.left) * sx, y = (clientY - rect.top) * sy;
+  var c = Math.floor(x / CELL), r = Math.floor(y / CELL);
+  if (r >= 0 && r < ROWS && c >= 0 && c < COLS) return { r: r, c: c };
   return null;
 }
 
-// --- Mouse ---
-let dragStart = null;
+var dragStart = null;
 
 canvas.addEventListener('mousemove', function(e) {
   hoverCell = getCellFromPointer(e.clientX, e.clientY);
 });
-
-canvas.addEventListener('mouseleave', function() {
-  hoverCell = null;
-});
+canvas.addEventListener('mouseleave', function() { hoverCell = null; });
 
 canvas.addEventListener('mousedown', function(e) {
   if (animating || !gameActive) return;
@@ -1000,13 +1088,9 @@ canvas.addEventListener('mousedown', function(e) {
 
 canvas.addEventListener('mouseup', function(e) {
   if (animating || !gameActive || !dragStart) return;
-  const cell = getCellFromPointer(e.clientX, e.clientY);
+  var cell = getCellFromPointer(e.clientX, e.clientY);
   if (!cell) { dragStart = null; return; }
-
-  const dr = cell.r - dragStart.r;
-  const dc = cell.c - dragStart.c;
-
-  if (Math.abs(dr) + Math.abs(dc) === 1) {
+  if (Math.abs(cell.r - dragStart.r) + Math.abs(cell.c - dragStart.c) === 1) {
     trySwap(dragStart.r, dragStart.c, cell.r, cell.c);
   } else {
     handleClick(dragStart);
@@ -1014,14 +1098,12 @@ canvas.addEventListener('mouseup', function(e) {
   dragStart = null;
 });
 
-// --- Touch ---
-let touchStart = null;
-let touchStartPos = null;
+var touchStart = null, touchStartPos = null;
 
 canvas.addEventListener('touchstart', function(e) {
   e.preventDefault();
   if (animating || !gameActive) return;
-  const t = e.touches[0];
+  var t = e.touches[0];
   touchStart = getCellFromPointer(t.clientX, t.clientY);
   touchStartPos = { x: t.clientX, y: t.clientY };
 }, { passive: false });
@@ -1029,73 +1111,49 @@ canvas.addEventListener('touchstart', function(e) {
 canvas.addEventListener('touchmove', function(e) {
   e.preventDefault();
   if (!touchStart || !touchStartPos || animating || !gameActive) return;
-  const t = e.touches[0];
-  const dx = t.clientX - touchStartPos.x;
-  const dy = t.clientY - touchStartPos.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-
-  // If finger moved far enough, determine swipe direction
-  if (dist > 20) {
-    let sr = 0, sc = 0;
-    if (Math.abs(dx) > Math.abs(dy)) {
-      sc = dx > 0 ? 1 : -1;
-    } else {
-      sr = dy > 0 ? 1 : -1;
-    }
-    const tr = touchStart.r + sr;
-    const tc = touchStart.c + sc;
-    if (tr >= 0 && tr < ROWS && tc >= 0 && tc < COLS) {
+  var t = e.touches[0];
+  var dx = t.clientX - touchStartPos.x, dy = t.clientY - touchStartPos.y;
+  if (Math.sqrt(dx * dx + dy * dy) > 20) {
+    var sr = 0, sc = 0;
+    if (Math.abs(dx) > Math.abs(dy)) sc = dx > 0 ? 1 : -1;
+    else sr = dy > 0 ? 1 : -1;
+    var tr = touchStart.r + sr, tc = touchStart.c + sc;
+    if (tr >= 0 && tr < ROWS && tc >= 0 && tc < COLS)
       trySwap(touchStart.r, touchStart.c, tr, tc);
-    }
-    touchStart = null;
-    touchStartPos = null;
+    touchStart = null; touchStartPos = null;
   }
 }, { passive: false });
 
 canvas.addEventListener('touchend', function(e) {
   e.preventDefault();
   if (!touchStart || animating || !gameActive) { touchStart = null; touchStartPos = null; return; }
-  // If we didn't swipe, treat as tap
   handleClick(touchStart);
-  touchStart = null;
-  touchStartPos = null;
+  touchStart = null; touchStartPos = null;
 }, { passive: false });
 
 function handleClick(cell) {
   if (!selected) {
-    selected = cell;
-    SFX.select();
-    hintGems = null;
-    hintTimer = 0;
+    selected = cell; SFX.select();
+    hintGems = null; hintTimer = 0;
     return;
   }
-
-  const dr = Math.abs(cell.r - selected.r);
-  const dc = Math.abs(cell.c - selected.c);
-
-  if (dr + dc === 1) {
+  if (Math.abs(cell.r - selected.r) + Math.abs(cell.c - selected.c) === 1) {
     trySwap(selected.r, selected.c, cell.r, cell.c);
   } else {
-    selected = cell;
-    SFX.select();
-    hintGems = null;
-    hintTimer = 0;
+    selected = cell; SFX.select();
+    hintGems = null; hintTimer = 0;
   }
 }
 
 async function trySwap(r1, c1, r2, c2) {
   animating = true;
-  selected = null;
-  hintGems = null;
-  hintTimer = 0;
+  selected = null; hintGems = null; hintTimer = 0;
 
   SFX.swap();
   swapGrid(r1, c1, r2, c2);
   await animateSwap(r1, c1, r2, c2);
 
-  const matched = findMatches();
-  if (matched.size === 0) {
-    // Invalid swap - reverse
+  if (findMatches().size === 0) {
     SFX.badSwap();
     swapGrid(r1, c1, r2, c2);
     await animateSwap(r1, c1, r2, c2);
@@ -1105,13 +1163,9 @@ async function trySwap(r1, c1, r2, c2) {
 
   movesLeft--;
   movesDisplay.textContent = movesLeft;
-
   await processMatches();
   animating = false;
-
-  if (movesLeft <= 0) {
-    gameOver();
-  }
+  if (movesLeft <= 0) gameOver();
 }
 
 // ============================================================
@@ -1119,24 +1173,14 @@ async function trySwap(r1, c1, r2, c2) {
 // ============================================================
 
 function startGame() {
-  score = 0;
-  level = 1;
-  movesLeft = 30;
-  levelTarget = 1000;
-  comboCount = 0;
-  selected = null;
-  hintGems = null;
-  hintTimer = 0;
-  animating = false;
-  particles = [];
-  floatingTexts = [];
-
+  score = 0; level = 1; movesLeft = 30; levelTarget = 1000;
+  comboCount = 0; selected = null; hintGems = null; hintTimer = 0;
+  animating = false; particles = []; floatingTexts = [];
   scoreDisplay.textContent = '0';
   levelDisplay.textContent = '1';
   movesDisplay.textContent = '30';
   levelBar.style.width = '0%';
   levelText.textContent = 'Score 1000 to reach Level 2';
-
   createGrid();
   overlay.classList.add('hidden');
   gameActive = true;
@@ -1157,7 +1201,6 @@ overlayBtn.addEventListener('click', function() {
   startGame();
 });
 
-// Start render loop
 requestAnimationFrame(gameLoop);
 </script>
 </body>
